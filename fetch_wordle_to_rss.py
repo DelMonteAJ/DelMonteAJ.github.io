@@ -76,6 +76,29 @@ def _fetch_today_answer(today: _dt.date | None = None) -> str | None:
     return None
 
 
+def _ensure_last_build_date(channel: ET.Element) -> ET.Element:
+    """
+    Ensure a <lastBuildDate> element exists directly after the core metadata
+    (title/link/description) at the top of the channel, and return it.
+    """
+    last_build = channel.find("lastBuildDate")
+
+    # Remove it temporarily so we can reinsert in the right place.
+    if last_build is not None:
+        channel.remove(last_build)
+    else:
+        last_build = ET.Element("lastBuildDate")
+
+    children = list(channel)
+    insert_idx = 0
+    for idx, child in enumerate(children):
+        if child.tag in {"description"}:
+            insert_idx = idx + 1
+
+    channel.insert(insert_idx, last_build)
+    return last_build
+
+
 def add_wordle_to_feed_for_date(
     target_date: _dt.date | None = None,
     feed_path: str = FEED_PATH,
@@ -126,10 +149,8 @@ def add_wordle_to_feed_for_date(
         ET.SubElement(item, "answer").text = answer
     ET.SubElement(item, "description").text = description_text
 
-    # Update channel metadata
-    last_build = channel.find("lastBuildDate")
-    if last_build is None:
-        last_build = ET.SubElement(channel, "lastBuildDate")
+    # Update channel metadata, keeping <lastBuildDate> with the other metadata
+    last_build = _ensure_last_build_date(channel)
     last_build.text = format_datetime(now)
 
     tree.write(feed_path, encoding="utf-8", xml_declaration=True)
